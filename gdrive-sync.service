@@ -6,8 +6,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=%i
-WorkingDirectory=/home/%i/backupGoogleDrive/gdrive-sync
-ExecStart=/home/%i/backupGoogleDrive/gdrive-sync/venv/bin/python sync.py
+WorkingDirectory=/home/%i/gdrive-sync
+ExecStart=/home/%i/gdrive-sync/venv/bin/python sync.py
 Restart=on-failure
 RestartSec=30
 StandardOutput=journal

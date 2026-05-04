@@ -66,7 +66,12 @@ def get_drive_service(creds_file: str, token_file: str):
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(creds_file, SCOPES)
-            creds = flow.run_local_server(port=0)
+            print("\n" + "="*60)
+            print("Autoryzacja Google – otwórz link poniżej w przeglądarce:")
+            print("(WSL2: wklej w Chrome/Edge na Windowsie)")
+            print("="*60)
+            creds = flow.run_local_server(port=8080, open_browser=False)
+            print("="*60 + "\n")
         with open(token_file, "w") as f:
             f.write(creds.to_json())
     return build("drive", "v3", credentials=creds)
