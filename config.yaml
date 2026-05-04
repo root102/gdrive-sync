@@ -1,0 +1,15 @@
+# ─── Google Drive ────────────────────────────────────────────────────────────
+folder_id: "1PXIFZ8Vk_Wb6SgZH-30PUoJ_wFBekFu2"
+
+# ─── OAuth – pobierz credentials.json z Google Cloud Console ─────────────────
+credentials_file: "credentials.json"
+token_file: "token.json"          # tworzony automatycznie przy pierwszym uruchomieniu
+
+# ─── Ścieżki docelowe ────────────────────────────────────────────────────────
+dest_dir:      "/mnt/hdd/akn/files"       # aktualne pliki
+versions_dir:  "/mnt/hdd/akn/versions"    # historia wersji
+state_file:    "/mnt/hdd/akn/.state.json" # cache stanu synchronizacji
+log_file:      "/mnt/hdd/akn/sync.log"    # log (opcjonalny)
+
+# ─── Synchronizacja ──────────────────────────────────────────────────────────
+sync_interval_seconds: 600    # 10 minut

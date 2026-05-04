@@ -1,0 +1,17 @@
+[Unit]
+Description=Google Drive → HDD sync (akn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/backupGoogleDrive/gdrive-sync
+ExecStart=/home/%i/backupGoogleDrive/gdrive-sync/venv/bin/python sync.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
