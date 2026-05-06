@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sys
+import tarfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -137,17 +138,16 @@ def file_checksum(path: Path) -> str:
 
 
 def save_version(current_path: Path, versions_root: Path):
-    """Copy current file to versions directory with timestamp."""
+    """Archive current file as timestamped .tar into versions_root/filename/DATE.tar"""
     if not current_path.exists():
         return
     ts = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    # versions_root already contains the folder name prefix — just use filename
-    ver_dir = versions_root / current_path.stem
+    ver_dir = versions_root / current_path.name
     ver_dir.mkdir(parents=True, exist_ok=True)
-    suffix = current_path.suffix
-    dest = ver_dir / f"{ts}{suffix}"
-    shutil.copy2(current_path, dest)
-    log.info(f"  versioned → {dest}")
+    tar_path = ver_dir / f"{ts}.tar"
+    with tarfile.open(tar_path, "w") as tar:
+        tar.add(current_path, arcname=current_path.name)
+    log.info(f"  versioned → {tar_path}")
 
 
 def download_file(service, file_meta: dict, dest_path: Path):
