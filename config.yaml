@@ -1,15 +1,23 @@
-# ─── Google Drive ────────────────────────────────────────────────────────────
-folder_id: "1PXIFZ8Vk_Wb6SgZH-30PUoJ_wFBekFu2"
+# ─── Google Drive – foldery do synchronizacji ────────────────────────────────
+# Dodaj dowolny folder/plik udostępniony Twojemu kontu Google.
+# Jak dodać: wklej link np. https://drive.google.com/drive/folders/FOLDER_ID
+# i skopiuj FOLDER_ID (część po /folders/) jako "id", ustaw nazwę podfolderu.
 
-# ─── OAuth – pobierz credentials.json z Google Cloud Console ─────────────────
+folders:
+  - id: "1PXIFZ8Vk_Wb6SgZH-30PUoJ_wFBekFu2"
+    name: "akn"
+  - id: "1kWJ21WWIsygDR2w86tF4FwNH19kDGCU6"
+    name: "shared"
+
+# ─── OAuth ───────────────────────────────────────────────────────────────────
 credentials_file: "credentials.json"
-token_file: "token.json"          # tworzony automatycznie przy pierwszym uruchomieniu
+token_file: "token.json"
 
 # ─── Ścieżki docelowe ────────────────────────────────────────────────────────
-dest_dir:      "/mnt/hdd/akn/files"       # aktualne pliki
-versions_dir:  "/mnt/hdd/akn/versions"    # historia wersji
-state_file:    "/mnt/hdd/akn/.state.json" # cache stanu synchronizacji
-log_file:      "/mnt/hdd/akn/sync.log"    # log (opcjonalny)
+dest_dir:      "/mnt/hdd/akn/files"
+versions_dir:  "/mnt/hdd/akn/versions"
+state_file:    "/mnt/hdd/akn/.state.json"
+log_file:      "/mnt/hdd/akn/sync.log"
 
 # ─── Synchronizacja ──────────────────────────────────────────────────────────
-sync_interval_seconds: 600    # 10 minut
+sync_interval_seconds: 600

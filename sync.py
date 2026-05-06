@@ -183,19 +183,29 @@ def save_state(state_file: Path, state: dict):
         json.dump(state, f, indent=2)
 
 
-def sync_once(service, config: dict, state: dict) -> dict:
-    folder_id = config["folder_id"]
-    dest_root = Path(config["dest_dir"])
-    versions_root = Path(config["versions_dir"])
-    state_file = Path(config["state_file"])
+def parse_folder_id(id_or_url: str) -> str:
+    """Accept raw ID or full Drive URL, return folder ID."""
+    if "drive.google.com" in id_or_url:
+        # https://drive.google.com/drive/folders/FOLDER_ID
+        # https://drive.google.com/file/d/FILE_ID/view
+        for part in id_or_url.rstrip("/").split("/"):
+            if len(part) > 20 and part not in ("folders", "file", "d", "view", "drive"):
+                return part
+    return id_or_url.strip()
 
-    log.info("=== Sync started ===")
+
+def sync_folder(service, folder_id: str, folder_name: str, dest_root: Path,
+                versions_root: Path, state: dict) -> tuple[int, int]:
+    """Sync a single Drive folder into dest_root/folder_name/. Returns (synced, skipped)."""
+    base = dest_root / folder_name
+    ver_base = versions_root / folder_name
 
     path_map = build_path_map(service, folder_id)
     files = list_folder_recursive(service, folder_id)
 
     synced = 0
     skipped = 0
+    remote_ids = {f["id"] for f in files}
 
     for f in files:
         fid = f["id"]
@@ -204,21 +214,18 @@ def sync_once(service, config: dict, state: dict) -> dict:
         modified = f.get("modifiedTime", "")
         remote_md5 = f.get("md5Checksum", "")
 
-        # resolve relative path inside the Drive folder
         parent_fid = f.get("_folder_id", folder_id)
         rel_dir = path_map.get(parent_fid, "")
         rel_path = Path(rel_dir) / name if rel_dir else Path(name)
 
-        # handle Google Workspace export suffix
         if mime in GOOGLE_MIME_EXPORT:
             _, ext = GOOGLE_MIME_EXPORT[mime]
             if not rel_path.suffix or rel_path.suffix != ext:
                 rel_path = rel_path.with_suffix(ext)
 
-        dest_path = dest_root / rel_path
+        dest_path = base / rel_path
         prev = state["files"].get(fid, {})
 
-        # skip if unchanged
         if dest_path.exists() and prev.get("modifiedTime") == modified:
             if remote_md5 and prev.get("md5") == remote_md5:
                 skipped += 1
@@ -228,36 +235,63 @@ def sync_once(service, config: dict, state: dict) -> dict:
                 skipped += 1
                 continue
 
-        # version existing file before overwriting
         if dest_path.exists():
-            save_version(dest_path, versions_root)
+            save_version(dest_path, ver_base)
 
-        log.info(f"  downloading  {rel_path}")
+        log.info(f"  downloading  {folder_name}/{rel_path}")
         try:
             download_file(service, f, dest_path)
             state["files"][fid] = {
                 "name": name,
+                "folder": folder_name,
                 "path": str(rel_path),
                 "modifiedTime": modified,
                 "md5": remote_md5 or file_checksum(dest_path),
             }
             synced += 1
         except HttpError as e:
-            log.error(f"  ERROR {rel_path}: {e}")
+            log.error(f"  ERROR {folder_name}/{rel_path}: {e}")
 
-    # clean up state entries for deleted remote files
-    remote_ids = {f["id"] for f in files}
-    for fid in list(state["files"].keys()):
-        if fid not in remote_ids:
-            old_path = dest_root / state["files"][fid]["path"]
-            if old_path.exists():
-                save_version(old_path, versions_root)
-                old_path.unlink()
-                log.info(f"  deleted (removed from Drive): {old_path}")
-            del state["files"][fid]
+    # remove files deleted from Drive (only those belonging to this folder)
+    folder_fids = {fid for fid, v in state["files"].items() if v.get("folder") == folder_name}
+    for fid in folder_fids - remote_ids:
+        old_path = base / state["files"][fid]["path"]
+        if old_path.exists():
+            save_version(old_path, ver_base)
+            old_path.unlink()
+            log.info(f"  deleted (removed from Drive): {old_path}")
+        del state["files"][fid]
+
+    return synced, skipped
+
+
+def sync_once(service, config: dict, state: dict) -> dict:
+    dest_root = Path(config["dest_dir"])
+    versions_root = Path(config["versions_dir"])
+    state_file = Path(config["state_file"])
+
+    # support both old single folder_id and new folders list
+    folders = config.get("folders")
+    if not folders:
+        folders = [{"id": config["folder_id"], "name": "files"}]
+
+    log.info("=== Sync started ===")
+    total_synced = 0
+    total_skipped = 0
+
+    for entry in folders:
+        fid = parse_folder_id(entry["id"])
+        fname = entry.get("name", fid[:8])
+        log.info(f"  folder: {fname}  ({fid})")
+        try:
+            s, k = sync_folder(service, fid, fname, dest_root, versions_root, state)
+            total_synced += s
+            total_skipped += k
+        except Exception as e:
+            log.error(f"  folder {fname} failed: {e}")
 
     save_state(state_file, state)
-    log.info(f"=== Sync done: {synced} downloaded, {skipped} skipped ===\n")
+    log.info(f"=== Sync done: {total_synced} downloaded, {total_skipped} skipped ===\n")
     return state
 
 
