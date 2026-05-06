@@ -1,13 +1,19 @@
 # ─── Google Drive – foldery do synchronizacji ────────────────────────────────
-# Dodaj dowolny folder/plik udostępniony Twojemu kontu Google.
-# Jak dodać: wklej link np. https://drive.google.com/drive/folders/FOLDER_ID
-# i skopiuj FOLDER_ID (część po /folders/) jako "id", ustaw nazwę podfolderu.
+# Wklej pełny link lub samo ID. Folder musi być udostępniony Twojemu kontu.
 
 folders:
   - id: "1PXIFZ8Vk_Wb6SgZH-30PUoJ_wFBekFu2"
     name: "akn"
   - id: "1kWJ21WWIsygDR2w86tF4FwNH19kDGCU6"
     name: "shared"
+
+# ─── Pojedyncze pliki ────────────────────────────────────────────────────────
+# Wklej link do pliku np. https://drive.google.com/file/d/FILE_ID/view
+# Zapisują się do dest_dir/__files__/
+
+files: []
+#  - id: "https://drive.google.com/file/d/TWÓJ_PLIK/view"
+#  - id: "1AbCdEfGhIjKlMnOpQrStUv"
 
 # ─── OAuth ───────────────────────────────────────────────────────────────────
 credentials_file: "credentials.json"

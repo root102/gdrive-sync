@@ -183,15 +183,63 @@ def save_state(state_file: Path, state: dict):
         json.dump(state, f, indent=2)
 
 
-def parse_folder_id(id_or_url: str) -> str:
-    """Accept raw ID or full Drive URL, return folder ID."""
+def parse_id(id_or_url: str) -> str:
+    """Accept raw ID or full Drive URL, return file/folder ID."""
     if "drive.google.com" in id_or_url:
-        # https://drive.google.com/drive/folders/FOLDER_ID
-        # https://drive.google.com/file/d/FILE_ID/view
         for part in id_or_url.rstrip("/").split("/"):
-            if len(part) > 20 and part not in ("folders", "file", "d", "view", "drive"):
+            if len(part) > 20 and part not in ("folders", "file", "d", "view", "drive", "open"):
                 return part
     return id_or_url.strip()
+
+
+def sync_file(service, file_id: str, dest_root: Path, versions_root: Path,
+              state: dict) -> tuple[int, int]:
+    """Sync a single Drive file. Returns (synced, skipped)."""
+    try:
+        meta = service.files().get(
+            fileId=file_id,
+            fields="id,name,mimeType,modifiedTime,md5Checksum"
+        ).execute()
+    except HttpError as e:
+        log.error(f"  Cannot get file metadata {file_id}: {e}")
+        return 0, 0
+
+    name = meta["name"]
+    mime = meta["mimeType"]
+    modified = meta.get("modifiedTime", "")
+    remote_md5 = meta.get("md5Checksum", "")
+
+    if mime in GOOGLE_MIME_EXPORT:
+        _, ext = GOOGLE_MIME_EXPORT[mime]
+        dest_path = dest_root / Path(name).with_suffix(ext)
+    else:
+        dest_path = dest_root / name
+
+    prev = state["files"].get(file_id, {})
+
+    if dest_path.exists() and prev.get("modifiedTime") == modified:
+        if remote_md5 and prev.get("md5") == remote_md5:
+            return 0, 1
+        if remote_md5 and file_checksum(dest_path) == remote_md5:
+            return 0, 1
+
+    if dest_path.exists():
+        save_version(dest_path, versions_root)
+
+    log.info(f"  downloading  {name}")
+    try:
+        download_file(service, meta, dest_path)
+        state["files"][file_id] = {
+            "name": name,
+            "folder": "__files__",
+            "path": str(dest_path),
+            "modifiedTime": modified,
+            "md5": remote_md5 or file_checksum(dest_path),
+        }
+        return 1, 0
+    except HttpError as e:
+        log.error(f"  ERROR {name}: {e}")
+        return 0, 0
 
 
 def sync_folder(service, folder_id: str, folder_name: str, dest_root: Path,
@@ -280,7 +328,7 @@ def sync_once(service, config: dict, state: dict) -> dict:
     total_skipped = 0
 
     for entry in folders:
-        fid = parse_folder_id(entry["id"])
+        fid = parse_id(entry["id"])
         fname = entry.get("name", fid[:8])
         log.info(f"  folder: {fname}  ({fid})")
         try:
@@ -289,6 +337,17 @@ def sync_once(service, config: dict, state: dict) -> dict:
             total_skipped += k
         except Exception as e:
             log.error(f"  folder {fname} failed: {e}")
+
+    # single files
+    for entry in config.get("files", []):
+        fid = parse_id(entry["id"])
+        log.info(f"  file: {fid}")
+        try:
+            s, k = sync_file(service, fid, dest_root / "__files__", versions_root, state)
+            total_synced += s
+            total_skipped += k
+        except Exception as e:
+            log.error(f"  file {fid} failed: {e}")
 
     save_state(state_file, state)
     log.info(f"=== Sync done: {total_synced} downloaded, {total_skipped} skipped ===\n")
