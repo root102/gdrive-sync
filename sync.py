@@ -141,8 +141,8 @@ def save_version(current_path: Path, versions_root: Path):
     if not current_path.exists():
         return
     ts = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    rel = current_path.relative_to(current_path.parents[len(current_path.parts) - 2])
-    ver_dir = versions_root / rel.parent / rel.stem
+    # versions_root already contains the folder name prefix — just use filename
+    ver_dir = versions_root / current_path.stem
     ver_dir.mkdir(parents=True, exist_ok=True)
     suffix = current_path.suffix
     dest = ver_dir / f"{ts}{suffix}"
