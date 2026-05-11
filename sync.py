@@ -137,17 +137,31 @@ def file_checksum(path: Path) -> str:
     return h.hexdigest()
 
 
-def save_version(current_path: Path, versions_root: Path):
-    """Archive current file as timestamped .tar into versions_root/filename/DATE.tar"""
+def save_version(current_path: Path, versions_root: Path, version_interval_s: int = 3600) -> bool:
+    """Archive current file as timestamped .tar — max once per version_interval_s seconds.
+    Returns True if a version was saved."""
     if not current_path.exists():
-        return
-    ts = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+        return False
     ver_dir = versions_root / current_path.name
     ver_dir.mkdir(parents=True, exist_ok=True)
+
+    # check time of last saved version
+    existing = sorted(ver_dir.glob("*.tar"))
+    if existing:
+        last_ts_str = existing[-1].stem  # e.g. 2026-05-11T12-30-00
+        try:
+            last_dt = datetime.strptime(last_ts_str, "%Y-%m-%dT%H-%M-%S")
+            if (datetime.now() - last_dt).total_seconds() < version_interval_s:
+                return False  # too soon, skip
+        except ValueError:
+            pass
+
+    ts = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     tar_path = ver_dir / f"{ts}.tar"
     with tarfile.open(tar_path, "w") as tar:
         tar.add(current_path, arcname=current_path.name)
     log.info(f"  versioned → {tar_path}")
+    return True
 
 
 def download_file(service, file_meta: dict, dest_path: Path):
@@ -217,10 +231,9 @@ def sync_file(service, file_id: str, dest_root: Path, versions_root: Path,
 
     prev = state["files"].get(file_id, {})
 
+    is_gdoc = mime in GOOGLE_MIME_EXPORT
     if dest_path.exists() and prev.get("modifiedTime") == modified:
-        if remote_md5 and prev.get("md5") == remote_md5:
-            return 0, 1
-        if remote_md5 and file_checksum(dest_path) == remote_md5:
+        if is_gdoc or (remote_md5 and (prev.get("md5") == remote_md5 or file_checksum(dest_path) == remote_md5)):
             return 0, 1
 
     if dest_path.exists():
@@ -274,7 +287,12 @@ def sync_folder(service, folder_id: str, folder_name: str, dest_root: Path,
         dest_path = base / rel_path
         prev = state["files"].get(fid, {})
 
+        is_gdoc = mime in GOOGLE_MIME_EXPORT
         if dest_path.exists() and prev.get("modifiedTime") == modified:
+            if is_gdoc:
+                # Google Docs exports vary each time — modifiedTime is enough
+                skipped += 1
+                continue
             if remote_md5 and prev.get("md5") == remote_md5:
                 skipped += 1
                 continue
